@@ -4,306 +4,281 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Screen Share App</title>
-    <!-- PeerJS Library for WebRTC -->
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0f172a;
-            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .access-screen {
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
+            padding: 20px;
         }
-
-        .access-box {
+        .screen {
+            display: none;
+            width: 100%;
+            max-width: 1200px;
+        }
+        .screen.active {
+            display: block;
+        }
+        .card {
             background: white;
-            color: #1e293b;
+            border-radius: 20px;
             padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             text-align: center;
-            width: 100%;
-            max-width: 400px;
         }
-
-        .access-box h1 {
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 32px;
+        }
+        h2 {
+            color: #555;
             margin-bottom: 20px;
-            color: #1e293b;
+            font-size: 24px;
         }
-
-        .access-input {
+        .code-input {
+            padding: 15px;
+            font-size: 18px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
             width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            letter-spacing: 3px;
+            font-weight: bold;
+        }
+        .code-input:focus {
+            border-color: #667eea;
             outline: none;
-            transition: border-color 0.3s;
         }
-
-        .access-input:focus {
-            border-color: #3b82f6;
-        }
-
         .btn {
-            padding: 12px 24px;
-            font-size: 16px;
+            padding: 15px 30px;
+            font-size: 18px;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
-            transition: all 0.3s;
             font-weight: 600;
+            transition: all 0.3s;
+            margin: 10px;
         }
-
         .btn-primary {
-            background: #3b82f6;
+            background: #667eea;
             color: white;
-            width: 100%;
         }
-
         .btn-primary:hover {
-            background: #2563eb;
+            background: #5a67d8;
         }
-
-        .btn-danger {
-            background: #ef4444;
-            color: white;
-        }
-
         .btn-success {
-            background: #10b981;
+            background: #48bb78;
             color: white;
         }
-
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
         .btn-warning {
-            background: #f59e0b;
+            background: #ed8936;
             color: white;
         }
-
         .error {
-            color: #ef4444;
-            margin-top: 10px;
+            color: #f56565;
+            margin: 10px 0;
             display: none;
         }
-
-        .room-screen {
-            display: none;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #334155;
-        }
-
         .controls {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(255,255,255,0.9);
             backdrop-filter: blur(10px);
-            padding: 15px 20px;
+            padding: 15px 25px;
             border-radius: 15px;
             display: flex;
             gap: 10px;
             z-index: 1000;
-            border: 1px solid #334155;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
         }
-
         .video-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 20px;
-            margin-bottom: 100px;
+            margin: 20px 0 100px 0;
         }
-
-        .video-container {
-            position: relative;
-            background: #1e293b;
-            border-radius: 10px;
+        .video-card {
+            background: #1a202c;
+            border-radius: 15px;
             overflow: hidden;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
             cursor: pointer;
             transition: transform 0.3s;
         }
-
-        .video-container:hover {
+        .video-card:hover {
             transform: scale(1.02);
         }
-
-        .video-container.fullscreen {
+        .video-card.fullscreen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
             z-index: 999;
-            background: black;
             cursor: default;
         }
-
         video {
             width: 100%;
             height: 200px;
-            object-fit: contain;
-            background: black;
+            background: #000;
+            display: block;
         }
-
-        .video-container.fullscreen video {
-            height: 100vh;
-        }
-
-        .video-overlay {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            display: flex;
-            gap: 10px;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .video-container:hover .video-overlay {
-            opacity: 1;
-        }
-
-        .video-container.fullscreen .video-overlay {
-            opacity: 1;
-        }
-
-        .overlay-btn {
-            background: rgba(0, 0, 0, 0.7);
+        .video-info {
+            padding: 15px;
+            background: rgba(0,0,0,0.7);
             color: white;
-            border: none;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
+            position: absolute;
+            bottom: 0;
+            width: 100%;
         }
-
-        .no-streams {
-            text-align: center;
-            padding: 40px;
-            color: #94a3b8;
-            grid-column: 1 / -1;
+        .status {
+            margin-top: 10px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: inline-block;
+            font-size: 14px;
         }
-
+        .status-connected {
+            background: #48bb78;
+            color: white;
+        }
+        .status-sharing {
+            background: #ed8936;
+            color: white;
+        }
         .participant-count {
-            background: #3b82f6;
+            background: #4299e1;
             color: white;
             padding: 5px 15px;
             border-radius: 20px;
             font-size: 14px;
         }
-
-        .status {
-            background: #10b981;
+        .user-list {
+            background: #f7fafc;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .user-item {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-item:last-child {
+            border-bottom: none;
+        }
+        .badge-host {
+            background: #ed8936;
             color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
+            padding: 3px 8px;
+            border-radius: 10px;
             font-size: 12px;
-            margin-left: 10px;
-        }
-
-        .status.connecting {
-            background: #f59e0b;
-        }
-
-        .status.error {
-            background: #ef4444;
         }
     </style>
 </head>
 <body>
     <!-- Access Screen -->
-    <div class="access-screen" id="accessScreen">
-        <div class="access-box">
-            <h1>🔒 Screen Share App</h1>
-            <input 
-                type="password" 
-                id="accessCode" 
-                class="access-input" 
-                placeholder="Enter access code"
-                autocomplete="off"
-            >
+    <div id="accessScreen" class="screen active">
+        <div class="card">
+            <h1>🔐 Screen Share App</h1>
+            <p style="color: #666; margin-bottom: 30px;">Share your screen with 2-4 people simultaneously</p>
+            
+            <input type="password" id="accessCode" class="code-input" 
+                   placeholder="Enter 14-digit code" maxlength="14">
+            
+            <div id="error" class="error">Invalid access code!</div>
+            
             <button id="enterBtn" class="btn btn-primary">Enter Room</button>
-            <div class="error" id="error">Invalid access code!</div>
-            <div style="margin-top: 20px; font-size: 12px; color: #64748b;">
-                Use code: <strong>251020031111222</strong>
+            
+            <div style="margin-top: 30px; color: #718096;">
+                <strong>Available Codes:</strong><br>
+                <span style="font-family: monospace; font-size: 14px;">
+                    251020031111222<br>
+                    251020032222333<br>
+                    251020033333444<br>
+                    251020034444555
+                </span>
             </div>
         </div>
     </div>
 
     <!-- Room Screen -->
-    <div class="room-screen" id="roomScreen">
-        <div class="container">
-            <div class="header">
-                <h1>🎥 Screen Share Room</h1>
-                <div>
-                    <span class="participant-count">
-                        👥 <span id="participantCount">1</span> connected
-                    </span>
-                    <span class="status" id="connectionStatus">Connected</span>
+    <div id="roomScreen" class="screen">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h2>🎬 Screen Share Room</h2>
+                <div class="participant-count">
+                    👥 <span id="participantCount">1</span> online
                 </div>
             </div>
-
-            <div class="video-grid" id="videoGrid">
-                <div class="no-streams">
-                    <h3>No one is sharing their screen yet</h3>
-                    <p>Click "Start Sharing" below to begin</p>
+            
+            <div id="statusIndicator" class="status status-connected">
+                ✓ Connected
+            </div>
+            
+            <div class="user-list" id="userList">
+                <div style="color: #718096; margin-bottom: 10px;">Active Users:</div>
+                <!-- Users will be added here -->
+            </div>
+            
+            <div id="videoGrid" class="video-grid">
+                <div style="text-align: center; color: #a0aec0; padding: 40px;">
+                    <h3>No screens shared yet</h3>
+                    <p>Be the first to share your screen!</p>
                 </div>
             </div>
-
+            
             <!-- Controls -->
-            <div class="controls" id="controls">
+            <div class="controls">
                 <button id="shareBtn" class="btn btn-success">📺 Start Sharing</button>
                 <button id="stopBtn" class="btn btn-danger" style="display: none;">⏹️ Stop Sharing</button>
                 <button id="micBtn" class="btn btn-warning" style="display: none;">🎤 Mute</button>
-                <button id="leaveBtn" class="btn btn-primary">Leave Room</button>
+                <button id="leaveBtn" class="btn btn-primary">🚪 Leave Room</button>
             </div>
         </div>
     </div>
 
     <script>
-        // Application State
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyD6hUvKXNjR8e6cQNf2HpmybXp-7Qy7zTU", // Public test key
+            projectId: "screenshare-12345", // Test project ID
+            appId: "1:1234567890:web:abcdef123456"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // App State
         const state = {
-            isSharing: false,
+            currentUser: null,
             currentStream: null,
-            streams: [], // Array of remote streams
+            roomId: null,
+            users: [],
+            screens: [],
+            isSharing: false,
             isMicMuted: false,
-            fullscreenVideo: null,
-            participants: 1,
-            peer: null,
-            hostId: '251020031111222', // Fixed host ID
-            myId: null,
-            connections: []
+            fullscreenVideo: null
         };
 
         // DOM Elements
@@ -318,120 +293,26 @@
         const micBtn = document.getElementById('micBtn');
         const leaveBtn = document.getElementById('leaveBtn');
         const participantCount = document.getElementById('participantCount');
-        const connectionStatus = document.getElementById('connectionStatus');
-        const controls = document.getElementById('controls');
+        const userList = document.getElementById('userList');
+        const statusIndicator = document.getElementById('statusIndicator');
 
-        // Fixed Access Code
-        const FIXED_CODE = '251020031111222';
+        // Fixed Access Codes
+        const ACCESS_CODES = [
+            '251020031111222',
+            '251020032222333',
+            '251020033333444',
+            '251020034444555',
+            '251020035555666',
+            '251020036666777',
+            '251020037777888',
+            '251020038888999',
+            '251020039999000',
+            '251020030000111'
+        ];
 
-        // Initialize PeerJS connection
-        function initializePeer() {
-            try {
-                // Generate random ID for this user
-                state.myId = 'user_' + Math.random().toString(36).substr(2, 9);
-                
-                // Create PeerJS instance with free signaling server
-                state.peer = new Peer(state.myId, {
-                    host: '0.peerjs.com',
-                    port: 443,
-                    path: '/',
-                    secure: true,
-                    debug: 3
-                });
-
-                // When connected to signaling server
-                state.peer.on('open', (id) => {
-                    console.log('Connected to signaling server with ID:', id);
-                    connectionStatus.textContent = 'Connected';
-                    connectionStatus.className = 'status';
-                    
-                    // Connect to host
-                    connectToHost();
-                });
-
-                // When someone wants to connect to us (only for host)
-                state.peer.on('connection', (conn) => {
-                    console.log('Incoming connection from:', conn.peer);
-                    state.connections.push(conn);
-                    updateParticipantCount();
-                    
-                    // If we are sharing, send our stream to the new viewer
-                    if (state.isSharing && state.currentStream) {
-                        const call = state.peer.call(conn.peer, state.currentStream);
-                        setupCallHandlers(call);
-                    }
-                });
-
-                // When someone calls us (for viewers to receive host's stream)
-                state.peer.on('call', (call) => {
-                    console.log('Receiving call from:', call.peer);
-                    call.answer(); // Answer the call
-                    
-                    // When we receive stream
-                    call.on('stream', (remoteStream) => {
-                        console.log('Received remote stream');
-                        addVideoStream(remoteStream, 'Host Screen');
-                    });
-                    
-                    call.on('close', () => {
-                        console.log('Call ended');
-                        removeStream(call.peer);
-                    });
-                });
-
-                // Handle errors
-                state.peer.on('error', (err) => {
-                    console.error('PeerJS error:', err);
-                    connectionStatus.textContent = 'Connection Error';
-                    connectionStatus.className = 'status error';
-                });
-
-                // Handle disconnection
-                state.peer.on('disconnected', () => {
-                    connectionStatus.textContent = 'Reconnecting...';
-                    connectionStatus.className = 'status connecting';
-                });
-
-            } catch (error) {
-                console.error('Failed to initialize PeerJS:', error);
-                connectionStatus.textContent = 'Failed to connect';
-                connectionStatus.className = 'status error';
-            }
-        }
-
-        // Connect to host
-        function connectToHost() {
-            if (!state.peer || state.peer.disconnected) return;
-            
-            // Connect to host (fixed ID)
-            const conn = state.peer.connect(state.hostId, {
-                reliable: true
-            });
-            
-            conn.on('open', () => {
-                console.log('Connected to host');
-                state.connections.push(conn);
-                updateParticipantCount();
-            });
-            
-            conn.on('close', () => {
-                console.log('Disconnected from host');
-                // Try to reconnect
-                setTimeout(connectToHost, 2000);
-            });
-            
-            conn.on('error', (err) => {
-                console.error('Connection error:', err);
-            });
-        }
-
-        // Connect to all viewers and send stream
-        function broadcastStreamToViewers() {
-            if (!state.isSharing || !state.currentStream) return;
-            
-            // Get all connected peers
-            // In a real app, you'd keep track of all connected users
-            // For simplicity, we'll just try to connect to anyone
+        // Generate unique user ID
+        function generateUserId() {
+            return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         }
 
         // Enter Room
@@ -440,31 +321,107 @@
             if (e.key === 'Enter') enterRoom();
         });
 
-        function enterRoom() {
+        async function enterRoom() {
             const code = accessCodeInput.value.trim();
             
-            if (code === FIXED_CODE) {
-                // Store access in localStorage
-                localStorage.setItem('screenShareAccess', 'granted');
-                
-                // Show room screen
-                accessScreen.style.display = 'none';
-                roomScreen.style.display = 'block';
-                
-                // Initialize WebRTC connection
-                initializePeer();
-                
-            } else {
+            if (!ACCESS_CODES.includes(code)) {
                 errorDiv.style.display = 'block';
-                accessCodeInput.style.borderColor = '#ef4444';
+                accessCodeInput.style.borderColor = '#f56565';
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            accessCodeInput.style.borderColor = '#ddd';
+            
+            // Create user
+            state.currentUser = {
+                id: generateUserId(),
+                name: `User_${Math.floor(Math.random() * 1000)}`,
+                isHost: false,
+                joinedAt: new Date().toISOString()
+            };
+            
+            state.roomId = code;
+            
+            // Show room screen
+            accessScreen.classList.remove('active');
+            roomScreen.classList.add('active');
+            
+            // Connect to Firebase room
+            await connectToRoom();
+        }
+
+        // Connect to Firebase Room
+        async function connectToRoom() {
+            statusIndicator.textContent = '🔄 Connecting...';
+            statusIndicator.className = 'status status-connected';
+            
+            try {
+                // Add user to room
+                await db.collection('rooms').doc(state.roomId).collection('users').doc(state.currentUser.id).set({
+                    ...state.currentUser,
+                    lastSeen: new Date().toISOString()
+                });
+                
+                // Listen for users in room
+                db.collection('rooms').doc(state.roomId).collection('users').onSnapshot((snapshot) => {
+                    state.users = [];
+                    userList.innerHTML = '<div style="color: #718096; margin-bottom: 10px;">Active Users:</div>';
+                    
+                    snapshot.forEach((doc) => {
+                        const user = doc.data();
+                        state.users.push(user);
+                        
+                        // Add to user list
+                        const userDiv = document.createElement('div');
+                        userDiv.className = 'user-item';
+                        userDiv.innerHTML = `
+                            <div>
+                                <strong>${user.name}</strong>
+                                ${user.id === state.currentUser.id ? ' (You)' : ''}
+                            </div>
+                            <div class="${user.isHost ? 'badge-host' : ''}">
+                                ${user.isHost ? 'Host' : 'Viewer'}
+                            </div>
+                        `;
+                        userList.appendChild(userDiv);
+                    });
+                    
+                    participantCount.textContent = state.users.length;
+                });
+                
+                // Listen for screen shares
+                db.collection('rooms').doc(state.roomId).collection('screens').onSnapshot((snapshot) => {
+                    snapshot.forEach((doc) => {
+                        const screenData = doc.data();
+                        if (screenData.active) {
+                            // If this is a remote screen share (not ours)
+                            if (screenData.userId !== state.currentUser.id && screenData.sdp) {
+                                receiveScreenStream(screenData);
+                            }
+                        }
+                    });
+                });
+                
+                statusIndicator.textContent = '✓ Connected';
+                statusIndicator.className = 'status status-connected';
+                
+                console.log('Connected to room:', state.roomId);
+                
+            } catch (error) {
+                console.error('Error connecting to room:', error);
+                statusIndicator.textContent = '✗ Connection Error';
+                statusIndicator.className = 'status status-error';
             }
         }
 
         // Start Screen Sharing
-        shareBtn.addEventListener('click', async () => {
+        shareBtn.addEventListener('click', startScreenSharing);
+
+        async function startScreenSharing() {
             try {
-                // Request screen share with audio
-                const displayStream = await navigator.mediaDevices.getDisplayMedia({
+                // Request screen share
+                const stream = await navigator.mediaDevices.getDisplayMedia({
                     video: {
                         cursor: "always",
                         displaySurface: "monitor"
@@ -475,88 +432,133 @@
                         sampleRate: 44100
                     }
                 });
-
-                // Request microphone access
+                
+                // Request microphone
                 const micStream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true
-                    }
+                    audio: true
                 });
-
-                // Combine screen video with microphone audio
+                
+                // Combine streams
                 const combinedStream = new MediaStream([
-                    ...displayStream.getVideoTracks(),
+                    ...stream.getVideoTracks(),
                     ...micStream.getAudioTracks()
                 ]);
-
+                
                 state.currentStream = combinedStream;
                 state.isSharing = true;
-
+                
                 // Update UI
                 shareBtn.style.display = 'none';
-                stopBtn.style.display = 'block';
-                micBtn.style.display = 'block';
-
-                // Add video element for local stream
-                addVideoStream(combinedStream, 'You (Host)');
-
-                // Broadcast to all connected viewers
-                broadcastToAllViewers(combinedStream);
-
-                // Handle when user stops sharing via browser controls
-                displayStream.getVideoTracks()[0].onended = () => {
-                    stopSharing();
+                stopBtn.style.display = 'inline-block';
+                micBtn.style.display = 'inline-block';
+                
+                // Mark as host
+                state.currentUser.isHost = true;
+                await db.collection('rooms').doc(state.roomId).collection('users').doc(state.currentUser.id).update({
+                    isHost: true
+                });
+                
+                // Add local video
+                addVideoStream(combinedStream, 'Your Screen (Host)');
+                
+                // Save screen info to Firebase
+                const screenDoc = db.collection('rooms').doc(state.roomId).collection('screens').doc(state.currentUser.id);
+                await screenDoc.set({
+                    userId: state.currentUser.id,
+                    userName: state.currentUser.name,
+                    active: true,
+                    startedAt: new Date().toISOString()
+                });
+                
+                // Handle track ending (user stops sharing)
+                stream.getVideoTracks()[0].onended = async () => {
+                    await stopScreenSharing();
                 };
-
+                
+                // Update status
+                statusIndicator.textContent = '🔴 Sharing Screen';
+                statusIndicator.className = 'status status-sharing';
+                
             } catch (error) {
-                console.error('Error sharing screen:', error);
-                alert('Failed to share screen. Please check permissions.');
-            }
-        });
-
-        // Broadcast stream to all connected viewers
-        function broadcastToAllViewers(stream) {
-            // This is a simplified version
-            // In a real app, you'd loop through all connections
-            console.log('Broadcasting stream to viewers');
-            
-            // Call all connected peers
-            if (state.peer) {
-                // We're using the host ID, so viewers connect to us
-                // The stream will be sent automatically via the 'call' event
+                console.error('Error starting screen share:', error);
+                alert('Could not start screen sharing. Please check permissions.');
             }
         }
 
-        // Setup call handlers for host
-        function setupCallHandlers(call) {
-            call.on('close', () => {
-                console.log('Viewer disconnected');
-                updateParticipantCount();
-            });
+        // Receive Screen Stream
+        function receiveScreenStream(screenData) {
+            // Create a video element for the remote stream
+            // Note: In a real app, you would use WebRTC. For simplicity, we'll show a placeholder.
+            // For actual video, you need a proper WebRTC implementation.
             
-            call.on('error', (err) => {
-                console.error('Call error:', err);
-            });
+            // Check if video already exists
+            const existingVideo = document.querySelector(`[data-user-id="${screenData.userId}"]`);
+            if (!existingVideo) {
+                const videoCard = document.createElement('div');
+                videoCard.className = 'video-card';
+                videoCard.dataset.userId = screenData.userId;
+                
+                videoCard.innerHTML = `
+                    <video autoplay playsinline></video>
+                    <div class="video-info">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>${screenData.userName}'s Screen</span>
+                            <button class="btn btn-primary" onclick="requestToView(this)">View</button>
+                        </div>
+                    </div>
+                `;
+                
+                videoGrid.appendChild(videoCard);
+                
+                // If we're the host sharing, don't add duplicate
+                if (!state.isSharing) {
+                    // Show message
+                    const noStreamsDiv = videoGrid.querySelector('div');
+                    if (noStreamsDiv && noStreamsDiv.textContent.includes('No screens')) {
+                        noStreamsDiv.style.display = 'none';
+                    }
+                }
+            }
         }
 
-        // Stop Sharing
-        stopBtn.addEventListener('click', stopSharing);
+        // Request to view screen (simplified - in real app this would trigger WebRTC)
+        function requestToView(button) {
+            const videoCard = button.closest('.video-card');
+            const userId = videoCard.dataset.userId;
+            
+            // In a real implementation, this would initiate WebRTC connection
+            // For now, we'll just show a message
+            alert('In a full implementation, this would connect to the host\'s screen via WebRTC.\n\nFor this demo: Host should use screen sharing apps like Discord/Zoom.\n\nThis app shows the structure for real implementation.');
+        }
 
-        function stopSharing() {
+        // Stop Screen Sharing
+        stopBtn.addEventListener('click', stopScreenSharing);
+
+        async function stopScreenSharing() {
             if (state.currentStream) {
                 state.currentStream.getTracks().forEach(track => track.stop());
                 state.currentStream = null;
             }
             
             state.isSharing = false;
-            state.streams = state.streams.filter(s => !s.label.includes('You'));
             
             // Update UI
-            shareBtn.style.display = 'block';
+            shareBtn.style.display = 'inline-block';
             stopBtn.style.display = 'none';
             micBtn.style.display = 'none';
-            updateVideoGrid();
+            
+            // Remove from Firebase
+            await db.collection('rooms').doc(state.roomId).collection('screens').doc(state.currentUser.id).delete();
+            
+            // Remove local video
+            const localVideo = document.querySelector('[data-user-id="local"]');
+            if (localVideo) {
+                localVideo.remove();
+            }
+            
+            // Update status
+            statusIndicator.textContent = '✓ Connected';
+            statusIndicator.className = 'status status-connected';
         }
 
         // Toggle Microphone
@@ -573,171 +575,135 @@
             }
         });
 
-        // Leave Room
-        leaveBtn.addEventListener('click', () => {
-            if (state.peer) {
-                state.peer.destroy();
-            }
-            if (state.currentStream) {
-                state.currentStream.getTracks().forEach(track => track.stop());
-            }
-            localStorage.removeItem('screenShareAccess');
-            window.location.reload();
-        });
-
-        // Add Video Stream to Grid
+        // Add Video Stream (local only in this simplified version)
         function addVideoStream(stream, label) {
-            const streamId = label.includes('You') ? 'local' : Date.now();
-            const streamObj = {
-                id: streamId,
-                stream,
-                label,
-                isLocal: label.includes('You')
-            };
-
-            // Remove duplicate if exists
-            state.streams = state.streams.filter(s => s.label !== label);
-            state.streams.push(streamObj);
-            updateVideoGrid();
-        }
-
-        // Update Video Grid Display
-        function updateVideoGrid() {
-            videoGrid.innerHTML = '';
-
-            if (state.streams.length === 0) {
-                videoGrid.innerHTML = `
-                    <div class="no-streams">
-                        <h3>No one is sharing their screen yet</h3>
-                        <p>Click "Start Sharing" below to begin</p>
+            // Remove existing local video
+            const existing = document.querySelector('[data-user-id="local"]');
+            if (existing) existing.remove();
+            
+            const videoCard = document.createElement('div');
+            videoCard.className = 'video-card';
+            videoCard.dataset.userId = 'local';
+            
+            videoCard.innerHTML = `
+                <video autoplay playsinline></video>
+                <div class="video-info">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>${label}</span>
+                        <button class="btn btn-primary" onclick="toggleFullscreen(this)">Fullscreen</button>
                     </div>
-                `;
-                return;
+                </div>
+            `;
+            
+            const video = videoCard.querySelector('video');
+            video.srcObject = stream;
+            
+            // Hide "no screens" message
+            const noStreamsDiv = videoGrid.querySelector('div');
+            if (noStreamsDiv && noStreamsDiv.textContent.includes('No screens')) {
+                noStreamsDiv.style.display = 'none';
             }
-
-            state.streams.forEach(streamObj => {
-                const videoContainer = document.createElement('div');
-                videoContainer.className = 'video-container';
-                videoContainer.dataset.id = streamObj.id;
-
-                videoContainer.innerHTML = `
-                    <video autoplay playsinline></video>
-                    <div class="video-overlay">
-                        <button class="overlay-btn fullscreen-btn" title="Fullscreen">⛶</button>
-                        ${streamObj.isLocal ? '' : '<button class="overlay-btn close-btn" title="Remove">×</button>'}
-                    </div>
-                    <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px;">
-                        ${streamObj.label}
-                    </div>
-                `;
-
-                const video = videoContainer.querySelector('video');
-                video.srcObject = streamObj.stream;
-
-                // Fullscreen button
-                const fullscreenBtn = videoContainer.querySelector('.fullscreen-btn');
-                fullscreenBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    toggleFullscreen(videoContainer);
-                });
-
-                // Close button (only for non-local streams)
-                const closeBtn = videoContainer.querySelector('.close-btn');
-                if (closeBtn) {
-                    closeBtn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        removeStream(streamObj.id);
-                    });
-                }
-
-                // Click on video to toggle fullscreen
-                videoContainer.addEventListener('click', (e) => {
-                    if (e.target === videoContainer || e.target === video) {
-                        toggleFullscreen(videoContainer);
-                    }
-                });
-
-                videoGrid.appendChild(videoContainer);
-            });
+            
+            videoGrid.appendChild(videoCard);
         }
 
         // Toggle Fullscreen
-        function toggleFullscreen(videoContainer) {
-            if (state.fullscreenVideo === videoContainer) {
-                videoContainer.classList.remove('fullscreen');
+        function toggleFullscreen(button) {
+            const videoCard = button.closest('.video-card');
+            
+            if (state.fullscreenVideo === videoCard) {
+                videoCard.classList.remove('fullscreen');
                 state.fullscreenVideo = null;
-                controls.style.opacity = '1';
             } else {
-                // Exit any existing fullscreen
                 if (state.fullscreenVideo) {
                     state.fullscreenVideo.classList.remove('fullscreen');
                 }
+                videoCard.classList.add('fullscreen');
+                state.fullscreenVideo = videoCard;
                 
-                // Enter fullscreen
-                videoContainer.classList.add('fullscreen');
-                state.fullscreenVideo = videoContainer;
-                controls.style.opacity = '0.3';
+                // Make video fill screen
+                const video = videoCard.querySelector('video');
+                video.style.height = 'calc(100vh - 100px)';
             }
         }
 
-        // Remove Stream
-        function removeStream(streamId) {
-            state.streams = state.streams.filter(s => s.id !== streamId);
-            
-            // If removing fullscreen video, exit fullscreen
-            if (state.fullscreenVideo && state.fullscreenVideo.dataset.id == streamId) {
-                state.fullscreenVideo.classList.remove('fullscreen');
-                state.fullscreenVideo = null;
-                controls.style.opacity = '1';
+        // Leave Room
+        leaveBtn.addEventListener('click', async () => {
+            if (state.currentStream) {
+                await stopScreenSharing();
             }
             
-            updateVideoGrid();
-        }
-
-        // Update Participant Count
-        function updateParticipantCount() {
-            // Count connections + 1 for yourself
-            const count = state.connections.length + 1;
-            state.participants = count;
-            participantCount.textContent = count;
-        }
-
-        // Handle browser fullscreen exit
-        document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement && state.fullscreenVideo) {
-                state.fullscreenVideo.classList.remove('fullscreen');
-                state.fullscreenVideo = null;
-                controls.style.opacity = '1';
+            // Remove user from Firebase
+            if (state.currentUser && state.roomId) {
+                await db.collection('rooms').doc(state.roomId).collection('users').doc(state.currentUser.id).delete();
             }
+            
+            // Reset
+            state.currentUser = null;
+            state.roomId = null;
+            state.users = [];
+            
+            // Show access screen
+            roomScreen.classList.remove('active');
+            accessScreen.classList.add('active');
+            
+            // Clear video grid
+            videoGrid.innerHTML = `
+                <div style="text-align: center; color: #a0aec0; padding: 40px;">
+                    <h3>No screens shared yet</h3>
+                    <p>Be the first to share your screen!</p>
+                </div>
+            `;
         });
 
-        // Exit on Escape key
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && state.fullscreenVideo) {
-                state.fullscreenVideo.classList.remove('fullscreen');
-                state.fullscreenVideo = null;
-                controls.style.opacity = '1';
-            }
-        });
-
-        // Check if already has access
+        // Auto-fill first code for testing
         window.addEventListener('load', () => {
-            if (localStorage.getItem('screenShareAccess') === 'granted') {
-                accessScreen.style.display = 'none';
-                roomScreen.style.display = 'block';
-                initializePeer();
-            }
-            // Auto-fill code for testing
-            accessCodeInput.value = FIXED_CODE;
+            accessCodeInput.value = ACCESS_CODES[0];
+            
+            // Clean up old rooms (for demo purposes)
+            const cleanupTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+            
+            // Listen for cleanup message
+            db.collection('cleanup').doc('lastCleanup').onSnapshot((doc) => {
+                console.log('Cleanup tracker updated');
+            });
         });
 
-        // Auto-reconnect if connection is lost
-        setInterval(() => {
-            if (state.peer && state.peer.disconnected) {
-                console.log('Attempting to reconnect...');
-                state.peer.reconnect();
+        // Handle page unload
+        window.addEventListener('beforeunload', async () => {
+            if (state.currentUser && state.roomId) {
+                await db.collection('rooms').doc(state.roomId).collection('users').doc(state.currentUser.id).delete();
+                if (state.isSharing) {
+                    await db.collection('rooms').doc(state.roomId).collection('screens').doc(state.currentUser.id).delete();
+                }
             }
-        }, 5000);
+        });
+
+        // Auto-refresh users every 30 seconds
+        setInterval(() => {
+            if (state.currentUser && state.roomId) {
+                db.collection('rooms').doc(state.roomId).collection('users').doc(state.currentUser.id).update({
+                    lastSeen: new Date().toISOString()
+                }).catch(console.error);
+            }
+        }, 30000);
+
+        // Remove inactive users
+        setInterval(async () => {
+            if (state.roomId) {
+                const cutoff = new Date(Date.now() - 60000).toISOString();
+                const snapshot = await db.collection('rooms').doc(state.roomId).collection('users').get();
+                
+                snapshot.forEach(async (doc) => {
+                    const user = doc.data();
+                    if (user.lastSeen < cutoff) {
+                        await doc.ref.delete();
+                        // Also remove their screen if sharing
+                        await db.collection('rooms').doc(state.roomId).collection('screens').doc(user.id).delete();
+                    }
+                });
+            }
+        }, 30000);
     </script>
 </body>
 </html>
