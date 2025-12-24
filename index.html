@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Screen Share App</title>
+    <!-- PeerJS Library for WebRTC -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -220,6 +222,23 @@
             border-radius: 20px;
             font-size: 14px;
         }
+
+        .status {
+            background: #10b981;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .status.connecting {
+            background: #f59e0b;
+        }
+
+        .status.error {
+            background: #ef4444;
+        }
     </style>
 </head>
 <body>
@@ -247,8 +266,11 @@
         <div class="container">
             <div class="header">
                 <h1>🎥 Screen Share Room</h1>
-                <div class="participant-count">
-                    👥 <span id="participantCount">1</span> connected
+                <div>
+                    <span class="participant-count">
+                        👥 <span id="participantCount">1</span> connected
+                    </span>
+                    <span class="status" id="connectionStatus">Connected</span>
                 </div>
             </div>
 
@@ -263,7 +285,8 @@
             <div class="controls" id="controls">
                 <button id="shareBtn" class="btn btn-success">📺 Start Sharing</button>
                 <button id="stopBtn" class="btn btn-danger" style="display: none;">⏹️ Stop Sharing</button>
-                <button id="micBtn" class="btn btn-warning">🎤 Mute</button>
+                <button id="micBtn" class="btn btn-warning" style="display: none;">🎤 Mute</button>
+                <button id="leaveBtn" class="btn btn-primary">Leave Room</button>
             </div>
         </div>
     </div>
@@ -273,10 +296,14 @@
         const state = {
             isSharing: false,
             currentStream: null,
-            streams: [],
+            streams: [], // Array of remote streams
             isMicMuted: false,
             fullscreenVideo: null,
-            participants: 1
+            participants: 1,
+            peer: null,
+            hostId: '251020031111222', // Fixed host ID
+            myId: null,
+            connections: []
         };
 
         // DOM Elements
@@ -289,11 +316,123 @@
         const shareBtn = document.getElementById('shareBtn');
         const stopBtn = document.getElementById('stopBtn');
         const micBtn = document.getElementById('micBtn');
+        const leaveBtn = document.getElementById('leaveBtn');
         const participantCount = document.getElementById('participantCount');
+        const connectionStatus = document.getElementById('connectionStatus');
         const controls = document.getElementById('controls');
 
         // Fixed Access Code
         const FIXED_CODE = '251020031111222';
+
+        // Initialize PeerJS connection
+        function initializePeer() {
+            try {
+                // Generate random ID for this user
+                state.myId = 'user_' + Math.random().toString(36).substr(2, 9);
+                
+                // Create PeerJS instance with free signaling server
+                state.peer = new Peer(state.myId, {
+                    host: '0.peerjs.com',
+                    port: 443,
+                    path: '/',
+                    secure: true,
+                    debug: 3
+                });
+
+                // When connected to signaling server
+                state.peer.on('open', (id) => {
+                    console.log('Connected to signaling server with ID:', id);
+                    connectionStatus.textContent = 'Connected';
+                    connectionStatus.className = 'status';
+                    
+                    // Connect to host
+                    connectToHost();
+                });
+
+                // When someone wants to connect to us (only for host)
+                state.peer.on('connection', (conn) => {
+                    console.log('Incoming connection from:', conn.peer);
+                    state.connections.push(conn);
+                    updateParticipantCount();
+                    
+                    // If we are sharing, send our stream to the new viewer
+                    if (state.isSharing && state.currentStream) {
+                        const call = state.peer.call(conn.peer, state.currentStream);
+                        setupCallHandlers(call);
+                    }
+                });
+
+                // When someone calls us (for viewers to receive host's stream)
+                state.peer.on('call', (call) => {
+                    console.log('Receiving call from:', call.peer);
+                    call.answer(); // Answer the call
+                    
+                    // When we receive stream
+                    call.on('stream', (remoteStream) => {
+                        console.log('Received remote stream');
+                        addVideoStream(remoteStream, 'Host Screen');
+                    });
+                    
+                    call.on('close', () => {
+                        console.log('Call ended');
+                        removeStream(call.peer);
+                    });
+                });
+
+                // Handle errors
+                state.peer.on('error', (err) => {
+                    console.error('PeerJS error:', err);
+                    connectionStatus.textContent = 'Connection Error';
+                    connectionStatus.className = 'status error';
+                });
+
+                // Handle disconnection
+                state.peer.on('disconnected', () => {
+                    connectionStatus.textContent = 'Reconnecting...';
+                    connectionStatus.className = 'status connecting';
+                });
+
+            } catch (error) {
+                console.error('Failed to initialize PeerJS:', error);
+                connectionStatus.textContent = 'Failed to connect';
+                connectionStatus.className = 'status error';
+            }
+        }
+
+        // Connect to host
+        function connectToHost() {
+            if (!state.peer || state.peer.disconnected) return;
+            
+            // Connect to host (fixed ID)
+            const conn = state.peer.connect(state.hostId, {
+                reliable: true
+            });
+            
+            conn.on('open', () => {
+                console.log('Connected to host');
+                state.connections.push(conn);
+                updateParticipantCount();
+            });
+            
+            conn.on('close', () => {
+                console.log('Disconnected from host');
+                // Try to reconnect
+                setTimeout(connectToHost, 2000);
+            });
+            
+            conn.on('error', (err) => {
+                console.error('Connection error:', err);
+            });
+        }
+
+        // Connect to all viewers and send stream
+        function broadcastStreamToViewers() {
+            if (!state.isSharing || !state.currentStream) return;
+            
+            // Get all connected peers
+            // In a real app, you'd keep track of all connected users
+            // For simplicity, we'll just try to connect to anyone
+        }
 
         // Enter Room
         enterBtn.addEventListener('click', enterRoom);
@@ -305,18 +444,15 @@
             const code = accessCodeInput.value.trim();
             
             if (code === FIXED_CODE) {
-                // Store access in localStorage (optional)
+                // Store access in localStorage
                 localStorage.setItem('screenShareAccess', 'granted');
                 
                 // Show room screen
                 accessScreen.style.display = 'none';
                 roomScreen.style.display = 'block';
                 
-                // Simulate participants (in real app, this would be from WebSocket)
-                setInterval(() => {
-                    state.participants = 1 + Math.floor(Math.random() * 3);
-                    updateParticipantCount();
-                }, 5000);
+                // Initialize WebRTC connection
+                initializePeer();
                 
             } else {
                 errorDiv.style.display = 'block';
@@ -363,7 +499,10 @@
                 micBtn.style.display = 'block';
 
                 // Add video element for local stream
-                addVideoStream(combinedStream, 'You (Sharing)');
+                addVideoStream(combinedStream, 'You (Host)');
+
+                // Broadcast to all connected viewers
+                broadcastToAllViewers(combinedStream);
 
                 // Handle when user stops sharing via browser controls
                 displayStream.getVideoTracks()[0].onended = () => {
@@ -376,6 +515,31 @@
             }
         });
 
+        // Broadcast stream to all connected viewers
+        function broadcastToAllViewers(stream) {
+            // This is a simplified version
+            // In a real app, you'd loop through all connections
+            console.log('Broadcasting stream to viewers');
+            
+            // Call all connected peers
+            if (state.peer) {
+                // We're using the host ID, so viewers connect to us
+                // The stream will be sent automatically via the 'call' event
+            }
+        }
+
+        // Setup call handlers for host
+        function setupCallHandlers(call) {
+            call.on('close', () => {
+                console.log('Viewer disconnected');
+                updateParticipantCount();
+            });
+            
+            call.on('error', (err) => {
+                console.error('Call error:', err);
+            });
+        }
+
         // Stop Sharing
         stopBtn.addEventListener('click', stopSharing);
 
@@ -386,11 +550,12 @@
             }
             
             state.isSharing = false;
-            state.streams = state.streams.filter(s => !s.isLocal);
+            state.streams = state.streams.filter(s => !s.label.includes('You'));
             
             // Update UI
             shareBtn.style.display = 'block';
             stopBtn.style.display = 'none';
+            micBtn.style.display = 'none';
             updateVideoGrid();
         }
 
@@ -408,9 +573,21 @@
             }
         });
 
+        // Leave Room
+        leaveBtn.addEventListener('click', () => {
+            if (state.peer) {
+                state.peer.destroy();
+            }
+            if (state.currentStream) {
+                state.currentStream.getTracks().forEach(track => track.stop());
+            }
+            localStorage.removeItem('screenShareAccess');
+            window.location.reload();
+        });
+
         // Add Video Stream to Grid
         function addVideoStream(stream, label) {
-            const streamId = Date.now();
+            const streamId = label.includes('You') ? 'local' : Date.now();
             const streamObj = {
                 id: streamId,
                 stream,
@@ -418,6 +595,8 @@
                 isLocal: label.includes('You')
             };
 
+            // Remove duplicate if exists
+            state.streams = state.streams.filter(s => s.label !== label);
             state.streams.push(streamObj);
             updateVideoGrid();
         }
@@ -445,7 +624,7 @@
                     <video autoplay playsinline></video>
                     <div class="video-overlay">
                         <button class="overlay-btn fullscreen-btn" title="Fullscreen">⛶</button>
-                        <button class="overlay-btn close-btn" title="Remove">×</button>
+                        ${streamObj.isLocal ? '' : '<button class="overlay-btn close-btn" title="Remove">×</button>'}
                     </div>
                     <div style="position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px;">
                         ${streamObj.label}
@@ -462,15 +641,13 @@
                     toggleFullscreen(videoContainer);
                 });
 
-                // Close button (only for non-local streams in real app)
+                // Close button (only for non-local streams)
                 const closeBtn = videoContainer.querySelector('.close-btn');
-                if (!streamObj.isLocal) {
+                if (closeBtn) {
                     closeBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         removeStream(streamObj.id);
                     });
-                } else {
-                    closeBtn.style.display = 'none';
                 }
 
                 // Click on video to toggle fullscreen
@@ -519,7 +696,10 @@
 
         // Update Participant Count
         function updateParticipantCount() {
-            participantCount.textContent = state.participants;
+            // Count connections + 1 for yourself
+            const count = state.connections.length + 1;
+            state.participants = count;
+            participantCount.textContent = count;
         }
 
         // Handle browser fullscreen exit
@@ -545,11 +725,19 @@
             if (localStorage.getItem('screenShareAccess') === 'granted') {
                 accessScreen.style.display = 'none';
                 roomScreen.style.display = 'block';
+                initializePeer();
             }
+            // Auto-fill code for testing
+            accessCodeInput.value = FIXED_CODE;
         });
 
-        // Auto-fill code for testing
-        accessCodeInput.value = FIXED_CODE;
+        // Auto-reconnect if connection is lost
+        setInterval(() => {
+            if (state.peer && state.peer.disconnected) {
+                console.log('Attempting to reconnect...');
+                state.peer.reconnect();
+            }
+        }, 5000);
     </script>
 </body>
 </html>
