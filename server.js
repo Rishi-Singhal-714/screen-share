@@ -1,28 +1,20 @@
+const express = require('express');
 const http = require('http');
-const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 3000;
+const app = express();
+const server = http.createServer(app);
 
-const server = http.createServer((req, res) => {
-    // Serve index.html for all routes
-    if (req.url === '/' || req.url === '/index.html') {
-        fs.readFile(path.join(__dirname, 'index.html'), (err, data) => {
-            if (err) {
-                res.writeHead(500);
-                res.end('Error loading index.html');
-                return;
-            }
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(data);
-        });
-    } else {
-        res.writeHead(404);
-        res.end('Not Found');
-    }
+// Serve static files
+app.use(express.static(path.join(__dirname)));
+
+// Serve index.html for all routes
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
-    console.log('Open this URL in multiple browsers to test screen sharing');
+    console.log('Open this URL in multiple browsers/devices to test!');
 });
